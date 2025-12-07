@@ -19,4 +19,3 @@ class CokoApp extends StatelessWidget {
     );
   }
 }
-

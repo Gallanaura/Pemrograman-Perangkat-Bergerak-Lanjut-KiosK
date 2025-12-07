@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
 import 'package:kiosk/features/home/data/models/drink.dart';
+import 'package:kiosk/features/home/presentation/pages/show_more_page.dart';
 import 'package:kiosk/features/home/presentation/widgets/drink_list.dart';
 import 'package:kiosk/features/home/presentation/widgets/header.dart';
 import 'package:kiosk/features/home/presentation/widgets/promo_card.dart';
@@ -11,10 +12,10 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   static final List<Drink> drinks = [
-    const Drink('Dark Korawa'),
-    const Drink('Merseyside'),
-    const Drink('Savaya'),
-    const Drink('Taro'),
+    const Drink('Dark Korawa', price: 20000),
+    const Drink('Merseyside', price: 15000),
+    const Drink('Savaya', price: 15000),
+    const Drink('Taro', price: 15000),
   ];
 
   @override
@@ -65,7 +66,14 @@ class HomePage extends StatelessWidget {
                     ),
                     shape: const StadiumBorder(),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ShowMorePage(),
+                      ),
+                    );
+                  },
                   child: const Text('Show more'),
                 ),
               ),

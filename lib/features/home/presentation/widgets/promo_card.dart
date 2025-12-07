@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/features/home/presentation/pages/promo_page.dart';
 
 class PromoCard extends StatelessWidget {
   const PromoCard({super.key});
@@ -23,35 +24,53 @@ class PromoCard extends StatelessWidget {
           opacity: 0.35,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Get Special discount',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white70,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Up to 30%',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brandBrown,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              shape: const StadiumBorder(),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PromoPage(),
             ),
-            onPressed: () {},
-            child: const Text('Order Now'),
-          ),
-        ],
+          );
+        },
+        borderRadius: BorderRadius.circular(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Get Special discount',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white70,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Up to 30%',
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brandBrown,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                shape: const StadiumBorder(),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PromoPage(),
+                  ),
+                );
+              },
+              child: const Text('Order Now'),
+            ),
+          ],
+        ),
       ),
     );
   }

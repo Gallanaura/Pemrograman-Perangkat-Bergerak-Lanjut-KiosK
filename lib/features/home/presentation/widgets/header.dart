@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/features/home/presentation/pages/profile_page.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
@@ -28,14 +29,24 @@ class HomeHeader extends StatelessWidget {
           ],
         ),
         const Spacer(),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.black12),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ProfilePage(),
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black12),
+            ),
+            padding: const EdgeInsets.all(10),
+            child: const Icon(Icons.person, color: AppColors.brandBrown),
           ),
-          padding: const EdgeInsets.all(10),
-          child: const Icon(Icons.person, color: AppColors.brandBrown),
         ),
       ],
     );
