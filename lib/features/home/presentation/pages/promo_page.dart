@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/features/home/presentation/pages/promo_detail_page.dart';
 
 class PromoPage extends StatelessWidget {
   const PromoPage({super.key});
@@ -112,21 +113,37 @@ class _PromoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PromoDetailPage(
+              promoTitle: title,
+              discount: discount,
+              description: description,
+              gradient: gradient,
+              icon: icon,
+            ),
           ),
-        ],
-      ),
-      child: Row(
+        );
+      },
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
         children: [
           // Icon
           Container(
@@ -192,6 +209,7 @@ class _PromoCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

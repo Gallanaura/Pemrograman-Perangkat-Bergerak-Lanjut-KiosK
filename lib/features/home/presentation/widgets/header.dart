@@ -13,18 +13,18 @@ class HomeHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Ö cöke',
+              'Ö cök0',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 26,
-                  ),
+                fontWeight: FontWeight.bold,
+                fontSize: 26,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Guest',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
           ],
         ),
@@ -33,9 +33,7 @@ class HomeHeader extends StatelessWidget {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (context) => const ProfilePage(),
-              ),
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
             );
           },
           child: Container(
@@ -52,4 +50,3 @@ class HomeHeader extends StatelessWidget {
     );
   }
 }
-

@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/core/services/image_storage_service.dart';
 import 'package:kiosk/features/home/data/models/drink.dart';
 
 class HorizontalDrinkList extends StatelessWidget {
@@ -10,6 +13,8 @@ class HorizontalDrinkList extends StatelessWidget {
     this.onAddToCart,
     this.showPrice = false,
     this.showAddButton = false,
+    this.showDiscount = false,
+    this.discountPercent = '',
   });
 
   final List<Drink> drinks;
@@ -17,6 +22,8 @@ class HorizontalDrinkList extends StatelessWidget {
   final Function(Drink)? onAddToCart;
   final bool showPrice;
   final bool showAddButton;
+  final bool showDiscount;
+  final String discountPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +37,8 @@ class HorizontalDrinkList extends StatelessWidget {
           onAddToCart: onAddToCart,
           showPrice: showPrice,
           showAddButton: showAddButton,
+          showDiscount: showDiscount,
+          discountPercent: discountPercent,
         ),
         separatorBuilder: (_, __) => const SizedBox(width: 16),
         itemCount: drinks.length,
@@ -46,6 +55,8 @@ class DrinkCard extends StatelessWidget {
     this.onAddToCart,
     this.showPrice = false,
     this.showAddButton = false,
+    this.showDiscount = false,
+    this.discountPercent = '',
   });
 
   final Drink drink;
@@ -53,6 +64,16 @@ class DrinkCard extends StatelessWidget {
   final Function(Drink)? onAddToCart;
   final bool showPrice;
   final bool showAddButton;
+  final bool showDiscount;
+  final String discountPercent;
+
+  int _calculateDiscountedPrice() {
+    if (discountPercent == 'FREE') {
+      return drink.price; // Buy 2 Get 1 Free
+    }
+    final discount = int.tryParse(discountPercent.replaceAll('%', '')) ?? 0;
+    return (drink.price * (100 - discount) / 100).round();
+  }
 
   Color _getDrinkColor() {
     switch (drink.name) {
@@ -67,9 +88,50 @@ class DrinkCard extends StatelessWidget {
     }
   }
 
+  Widget _buildPlaceholder(Color drinkColor) {
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        // Drink liquid
+        Positioned.fill(
+          child: Container(
+            margin: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 24),
+            decoration: BoxDecoration(
+              color: drinkColor,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        // White lid
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            height: 24,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final drinkColor = _getDrinkColor();
+    final imageStorageService = ImageStorageService();
+    final bool isLocalPath = drink.imageUrl != null && 
+        drink.imageUrl!.isNotEmpty &&
+        imageStorageService.isLocalPath(drink.imageUrl);
     
     return Container(
       width: 150,
@@ -89,40 +151,33 @@ class DrinkCard extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  // Drink liquid
-                  Positioned.fill(
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 24),
-                      decoration: BoxDecoration(
-                        color: drinkColor,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // White lid
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 24,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(16),
-                          bottomRight: Radius.circular(16),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: drink.imageUrl != null && drink.imageUrl!.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: isLocalPath && !kIsWeb
+                          ? Image.file(
+                              File(drink.imageUrl!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => _buildPlaceholder(drinkColor),
+                            )
+                          : Image.network(
+                              drink.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => _buildPlaceholder(drinkColor),
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                            ),
+                    )
+                  : _buildPlaceholder(drinkColor),
             ),
           ),
           const SizedBox(height: 12),
@@ -136,16 +191,47 @@ class DrinkCard extends StatelessWidget {
           ),
           if (showPrice) ...[
             const SizedBox(height: 4),
-            Text(
-              'Rp${drink.price.toString().replaceAllMapped(
-                    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                    (Match m) => '${m[1]}.',
-                  )}',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[700],
+            if (showDiscount && discountPercent.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Rp${drink.price.toString().replaceAllMapped(
+                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                          (Match m) => '${m[1]}.',
+                        )}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[400],
+                          decoration: TextDecoration.lineThrough,
+                        ),
                   ),
-            ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Rp${_calculateDiscountedPrice().toString().replaceAllMapped(
+                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                          (Match m) => '${m[1]}.',
+                        )}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.red[700],
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Text(
+                'Rp${drink.price.toString().replaceAllMapped(
+                      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                      (Match m) => '${m[1]}.',
+                    )}',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[700],
+                    ),
+              ),
+            ],
           ],
           if (showAddButton && onAddToCart != null) ...[
             const SizedBox(height: 10),
@@ -175,11 +261,15 @@ class GridDrinkList extends StatelessWidget {
     required this.drinks,
     required this.cardColor,
     this.onAddToCart,
+    this.showDiscount = false,
+    this.discountPercent = '',
   });
 
   final List<Drink> drinks;
   final Color cardColor;
   final Function(Drink)? onAddToCart;
+  final bool showDiscount;
+  final String discountPercent;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +289,8 @@ class GridDrinkList extends StatelessWidget {
         onAddToCart: onAddToCart,
         showPrice: true,
         showAddButton: true,
+        showDiscount: showDiscount,
+        discountPercent: discountPercent,
       ),
     );
   }

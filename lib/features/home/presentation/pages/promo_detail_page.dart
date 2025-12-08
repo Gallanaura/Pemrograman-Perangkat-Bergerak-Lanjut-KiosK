@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/core/utils/user_preferences.dart';
 import 'package:kiosk/features/home/data/models/drink.dart';
 import 'package:kiosk/features/home/data/models/cart_item.dart';
+import 'package:kiosk/features/home/data/repositories/order_repository.dart';
 import 'package:kiosk/features/home/data/repositories/product_repository.dart';
 import 'package:kiosk/features/home/presentation/pages/payment_page.dart';
 import 'package:kiosk/features/home/presentation/widgets/drink_list.dart';
 import 'package:kiosk/features/home/presentation/widgets/section_header.dart';
 
-class ShowMorePage extends StatefulWidget {
-  const ShowMorePage({super.key});
+class PromoDetailPage extends StatefulWidget {
+  const PromoDetailPage({
+    super.key,
+    required this.promoTitle,
+    required this.discount,
+    required this.description,
+    required this.gradient,
+    required this.icon,
+  });
+
+  final String promoTitle;
+  final String discount;
+  final String description;
+  final Gradient gradient;
+  final IconData icon;
 
   @override
-  State<ShowMorePage> createState() => _ShowMorePageState();
+  State<PromoDetailPage> createState() => _PromoDetailPageState();
 }
 
-class _ShowMorePageState extends State<ShowMorePage> {
+class _PromoDetailPageState extends State<PromoDetailPage> {
   final ProductRepository _productRepository = ProductRepository();
   final TextEditingController _searchController = TextEditingController();
   List<Drink> allDrinks = [];
@@ -29,27 +44,45 @@ class _ShowMorePageState extends State<ShowMorePage> {
     _searchController.addListener(_filterDrinks);
   }
 
+  String _getCategoryFromPromoTitle(String promoTitle) {
+    switch (promoTitle) {
+      case 'Special Discount':
+        return 'special_discount';
+      case 'Weekend Special':
+        return 'weekend_special';
+      case 'Student Discount':
+        return 'student_discount';
+      case 'Buy 2 Get 1 Free':
+        return 'buy2get1';
+      default:
+        return 'discount';
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    // Get category based on promo title
+    final category = _getCategoryFromPromoTitle(widget.promoTitle);
+    
+    // Load products by category
+    final categoryProducts = await _productRepository.getProductsByCategory(category);
+    
+    // Also load all products as fallback
+    final allProducts = await _productRepository.getAllProducts();
+    
+    setState(() {
+      // Use category products if available, otherwise use all products
+      allDrinks = categoryProducts.isNotEmpty 
+          ? _productRepository.mapToDrinks(categoryProducts)
+          : _productRepository.mapToDrinks(allProducts);
+      filteredDrinks = allDrinks;
+      _isLoading = false;
+    });
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadProducts() async {
-    // Load recommended products
-    final recommendedProducts = await _productRepository.getProductsByCategory('recommended');
-    final recommendedDrinks = _productRepository.mapToDrinks(recommendedProducts);
-    
-    // Load all products
-    final allProducts = await _productRepository.getAllProducts();
-    allDrinks = _productRepository.mapToDrinks(allProducts);
-    
-    setState(() {
-      // Use recommended drinks if available, otherwise use all drinks
-      allDrinks = recommendedDrinks.isNotEmpty ? recommendedDrinks : allDrinks;
-      filteredDrinks = allDrinks;
-      _isLoading = false;
-    });
   }
 
   void _filterDrinks() {
@@ -65,12 +98,33 @@ class _ShowMorePageState extends State<ShowMorePage> {
     });
   }
 
+  Color _getDrinkColor(String drinkName) {
+    switch (drinkName) {
+      case 'Dark Korawa':
+        return const Color(0xFF6B4423);
+      case 'Merseyside':
+        return const Color(0xFFE91E63);
+      case 'Taro':
+        return const Color(0xFF9E9E9E);
+      default:
+        return const Color(0xFF8D6E63);
+    }
+  }
+
+  int _calculateDiscountedPrice(int originalPrice) {
+    if (widget.discount == 'FREE') {
+      return originalPrice; // Buy 2 Get 1 Free - price stays same
+    }
+    final discountPercent = int.tryParse(widget.discount.replaceAll('%', '')) ?? 0;
+    return (originalPrice * (100 - discountPercent) / 100).round();
+  }
+
   void _addToCart(Drink drink) {
     setState(() {
       final existingIndex = cartItems.indexWhere(
-        (item) => item.drink.id == drink.id,
+        (item) => item.drink.name == drink.name,
       );
-      if (existingIndex >= 0) {
+      if (existingIndex != -1) {
         cartItems[existingIndex] = cartItems[existingIndex].copyWith(
           quantity: cartItems[existingIndex].quantity + 1,
         );
@@ -78,13 +132,6 @@ class _ShowMorePageState extends State<ShowMorePage> {
         cartItems.add(CartItem(drink: drink, quantity: 1));
       }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${drink.name} added to cart'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   void _decreaseQuantity(int index) {
@@ -111,19 +158,6 @@ class _ShowMorePageState extends State<ShowMorePage> {
     return cartItems.fold(0, (sum, item) => sum + item.totalPrice);
   }
 
-  Color _getDrinkColor(String drinkName) {
-    switch (drinkName) {
-      case 'Dark Korawa':
-        return const Color(0xFF6B4423);
-      case 'Merseyside':
-        return const Color(0xFFE91E63);
-      case 'Taro':
-        return const Color(0xFF9E9E9E);
-      default:
-        return const Color(0xFF8D6E63);
-    }
-  }
-
   void _showCartModal() {
     showModalBottomSheet(
       context: context,
@@ -142,98 +176,210 @@ class _ShowMorePageState extends State<ShowMorePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('All Products'),
-          backgroundColor: AppColors.brandBrown,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('All Products'),
-        backgroundColor: AppColors.brandBrown,
-        foregroundColor: Colors.white,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Search Field
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search products...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Promo Header Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: widget.gradient,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[100],
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      widget.discount,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: AppColors.brandBrown,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                    Text(
+                                      'OFF',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              widget.icon,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            widget.promoTitle,
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.description,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Recommended Section
-                  SectionHeader(
-                    title: 'Recommended',
-                    onNext: () {},
-                    onPrevious: () {},
-                  ),
-                  const SizedBox(height: 16),
-                  HorizontalDrinkList(
-                    drinks: filteredDrinks,
-                    cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
-                    onAddToCart: _addToCart,
-                    showPrice: true,
-                    showAddButton: true,
-                  ),
-                  const SizedBox(height: 24),
-                  // All Products Grid
-                  SectionHeader(
-                    title: 'All Products',
-                    onNext: () {},
-                    onPrevious: () {},
-                  ),
-                  const SizedBox(height: 16),
-                  GridDrinkList(
-                    drinks: filteredDrinks,
-                    cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
-                    onAddToCart: _addToCart,
-                  ),
-                  const SizedBox(height: 100),
-                ],
+                    const SizedBox(height: 24),
+                    // Search Bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'burger',
+                              hintStyle: const TextStyle(color: Colors.grey),
+                              filled: true,
+                              fillColor: AppColors.pageBackground,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                          },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: AppColors.brandBrown,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Icon(
+                              Icons.search,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Recommended Section
+                    SectionHeader(
+                      title: 'Recommended',
+                      onNext: () {},
+                      onPrevious: () {},
+                    ),
+                    const SizedBox(height: 16),
+                    HorizontalDrinkList(
+                      drinks: filteredDrinks,
+                      cardColor: AppColors.brandBrown.withOpacity(0.2),
+                      onAddToCart: _addToCart,
+                      showPrice: true,
+                      showAddButton: true,
+                      showDiscount: true,
+                      discountPercent: widget.discount,
+                    ),
+                    const SizedBox(height: 24),
+                    // Categories Section
+                    SectionHeader(
+                      title: 'Categories',
+                      onNext: () {},
+                      onPrevious: () {},
+                    ),
+                    const SizedBox(height: 16),
+                    GridDrinkList(
+                      drinks: filteredDrinks,
+                      cardColor: AppColors.brandBrown.withOpacity(0.2),
+                      onAddToCart: _addToCart,
+                      showDiscount: true,
+                      discountPercent: widget.discount,
+                    ),
+                    const SizedBox(height: 100),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Bottom Cart Summary Bar
-          if (cartItems.isNotEmpty)
-            _CartSummaryBar(
-              itemCount: cartItems.length,
-              totalPrice: _totalPrice,
-              onContinue: _showCartModal,
-            ),
-        ],
+            // Bottom Cart Summary Bar
+            if (cartItems.isNotEmpty)
+              _CartSummaryBar(
+                itemCount: cartItems.length,
+                totalPrice: _totalPrice,
+                onContinue: _showCartModal,
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// Cart Summary Bar - Same as promo_detail_page
+// Reuse cart components from show_more_page
 class _CartSummaryBar extends StatelessWidget {
   const _CartSummaryBar({
     required this.itemCount,
@@ -253,7 +399,7 @@ class _CartSummaryBar extends StatelessWidget {
         color: AppColors.pageBackground,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -315,7 +461,6 @@ class _CartSummaryBar extends StatelessWidget {
   }
 }
 
-// Cart Modal - Same as promo_detail_page
 class _CartModal extends StatefulWidget {
   const _CartModal({
     required this.cartItems,
@@ -495,7 +640,7 @@ class _CartModalState extends State<_CartModal> {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 10,
                       offset: const Offset(0, -2),
                     ),
@@ -534,7 +679,7 @@ class _CartModalState extends State<_CartModal> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                        child: const Text('Continue to Payment'),
+                        child: const Text('continue to pay'),
                       ),
                     ),
                   ],
@@ -548,7 +693,6 @@ class _CartModalState extends State<_CartModal> {
   }
 }
 
-// Cart Item Card - Same as promo_detail_page
 class _CartItemCard extends StatelessWidget {
   const _CartItemCard({
     required this.cartItem,
@@ -564,43 +708,52 @@ class _CartItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drink Image/Icon
           Container(
-            width: 60,
-            height: 60,
+            width: 80,
+            height: 80,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: getDrinkColor(cartItem.drink.name).withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
+              color: AppColors.brandBrown.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: cartItem.drink.imageUrl != null && cartItem.drink.imageUrl!.isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      cartItem.drink.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Icon(
-                        Icons.local_cafe,
-                        color: getDrinkColor(cartItem.drink.name),
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                Column(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: getDrinkColor(cartItem.drink.name),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(8),
+                            topRight: Radius.circular(8),
+                          ),
+                        ),
                       ),
                     ),
-                  )
-                : Icon(
-                    Icons.local_cafe,
-                    color: getDrinkColor(cartItem.drink.name),
-                  ),
+                    Container(
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(8),
+                          bottomRight: Radius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 16),
-          // Drink Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,20 +771,19 @@ class _CartItemCard extends StatelessWidget {
                       index < cartItem.drink.rating.floor()
                           ? Icons.star
                           : Icons.star_border,
-                      color: Colors.amber,
-                      size: 16,
+                      color: Colors.amber[600],
+                      size: 18,
                     );
                   }),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   'Rp ${cartItem.drink.price.toString().replaceAllMapped(
                         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                         (Match m) => '${m[1]}.',
                       )}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.brandBrown,
-                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[700],
                       ),
                 ),
                 if (cartItem.quantity > 1)
@@ -641,45 +793,54 @@ class _CartItemCard extends StatelessWidget {
                           (Match m) => '${m[1]}.',
                         )}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
+                          color: AppColors.brandBrown,
+                          fontWeight: FontWeight.w600,
                         ),
                   ),
               ],
             ),
           ),
-          // Quantity Controls
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.pageBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.remove, color: AppColors.brandBrown, size: 18),
                   onPressed: onDecrease,
-                  color: AppColors.brandBrown,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    '${cartItem.quantity}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${cartItem.quantity}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.orange[200],
+                  shape: BoxShape.circle,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
                   onPressed: onIncrease,
-                  color: AppColors.brandBrown,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 }
+

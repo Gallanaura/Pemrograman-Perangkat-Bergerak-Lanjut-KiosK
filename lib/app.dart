@@ -1,7 +1,7 @@
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
-import 'package:kiosk/features/home/presentation/pages/home_page.dart';
+import 'package:kiosk/features/auth/presentation/pages/login_page.dart';
 
 class CokoApp extends StatelessWidget {
   const CokoApp({super.key});
@@ -15,7 +15,7 @@ class CokoApp extends StatelessWidget {
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
       theme: AppTheme.light,
-      home: const HomePage(),
+      home: const LoginPage(),
     );
   }
 }

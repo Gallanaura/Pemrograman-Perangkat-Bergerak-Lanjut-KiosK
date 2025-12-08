@@ -1,11 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/core/utils/user_preferences.dart';
+import 'package:kiosk/features/auth/data/repositories/auth_repository.dart';
+import 'package:kiosk/features/auth/presentation/pages/login_page.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final AuthRepository _authRepository = AuthRepository();
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userId = await UserPreferences.getUserId();
+    if (userId != null) {
+      final user = await _authRepository.getUserById(userId);
+      setState(() {
+        _userData = user;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -78,21 +117,23 @@ class ProfilePage extends StatelessWidget {
                           _ProfileField(
                             icon: Icons.person_outline,
                             label: 'Nama',
-                            value: 'John Doe',
+                            value: _userData?['username'] ?? 'Guest',
                           ),
                           const Divider(height: 32),
                           // Email
                           _ProfileField(
                             icon: Icons.email_outlined,
                             label: 'Email',
-                            value: 'john.doe@example.com',
+                            value: _userData?['email'] ?? '-',
                           ),
                           const Divider(height: 32),
                           // Nomor HP
                           _ProfileField(
                             icon: Icons.phone_outlined,
                             label: 'Nomor HP',
-                            value: '+62 812 3456 7890',
+                            value: _userData?['phone']?.toString().isEmpty ?? true 
+                                ? '-' 
+                                : _userData!['phone'],
                           ),
                         ],
                       ),
@@ -138,34 +179,49 @@ class ProfilePage extends StatelessWidget {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Apakah Anda yakin ingin logout?'),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Batal',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Apakah Anda yakin ingin logout?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context); // Close dialog
-              Navigator.pop(context); // Close profile page
-              // Here you can add logout logic
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Batal',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
             ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
+            FilledButton(
+              onPressed: () async {
+                // Close dialog first
+                Navigator.pop(dialogContext);
+                
+                // Clear user session
+                await UserPreferences.clearUser();
+                
+                // Wait a bit to ensure dialog is closed
+                await Future.delayed(const Duration(milliseconds: 100));
+                
+                // Navigate to login page and remove all previous routes
+                if (context.mounted) {
+                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                    (Route<dynamic> route) => false,
+                  );
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
 import 'package:kiosk/features/home/data/models/drink.dart';
+import 'package:kiosk/features/home/data/repositories/product_repository.dart';
 import 'package:kiosk/features/home/presentation/pages/show_more_page.dart';
 import 'package:kiosk/features/home/presentation/widgets/drink_list.dart';
 import 'package:kiosk/features/home/presentation/widgets/header.dart';
@@ -8,18 +9,52 @@ import 'package:kiosk/features/home/presentation/widgets/promo_card.dart';
 import 'package:kiosk/features/home/presentation/widgets/search_field.dart';
 import 'package:kiosk/features/home/presentation/widgets/section_header.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
-  static final List<Drink> drinks = [
-    const Drink('Dark Korawa', price: 20000),
-    const Drink('Merseyside', price: 15000),
-    const Drink('Savaya', price: 15000),
-    const Drink('Taro', price: 15000),
-  ];
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final ProductRepository _productRepository = ProductRepository();
+  List<Drink> allDrinks = [];
+  List<Drink> recommendedDrinks = [];
+  List<Drink> categoryDrinks = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    // Load all products
+    final allProducts = await _productRepository.getAllProducts();
+    allDrinks = _productRepository.mapToDrinks(allProducts);
+    
+    // Load recommended products
+    final recommendedProducts = await _productRepository.getProductsByCategory('recommended');
+    recommendedDrinks = _productRepository.mapToDrinks(recommendedProducts);
+    
+    // Load category products (all except recommended)
+    final categoryProducts = await _productRepository.getProductsByCategory('all');
+    categoryDrinks = _productRepository.mapToDrinks(categoryProducts);
+    
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -40,8 +75,8 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               HorizontalDrinkList(
-                drinks: drinks,
-                cardColor: AppColors.brandBrown.withOpacity(0.2),
+                drinks: categoryDrinks.isNotEmpty ? categoryDrinks : allDrinks,
+                cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
               ),
               const SizedBox(height: 24),
               SectionHeader(
@@ -51,8 +86,8 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               HorizontalDrinkList(
-                drinks: drinks,
-                cardColor: AppColors.brandBrown.withOpacity(0.2),
+                drinks: recommendedDrinks.isNotEmpty ? recommendedDrinks : allDrinks,
+                cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
               ),
               const SizedBox(height: 32),
               Center(
@@ -70,7 +105,7 @@ class HomePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ShowMorePage(),
+                        builder: (context) => ShowMorePage(),
                       ),
                     );
                   },

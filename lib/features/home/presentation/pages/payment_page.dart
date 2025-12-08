@@ -1,8 +1,129 @@
 import 'package:flutter/material.dart';
 import 'package:kiosk/core/theme/app_theme.dart';
+import 'package:kiosk/core/utils/user_preferences.dart';
+import 'package:kiosk/features/auth/data/repositories/auth_repository.dart';
+import 'package:kiosk/features/home/data/models/cart_item.dart';
+import 'package:kiosk/features/home/data/repositories/order_repository.dart';
+import 'package:kiosk/features/home/data/repositories/product_repository.dart';
+import 'package:kiosk/features/home/presentation/pages/home_page.dart';
+import 'package:kiosk/features/home/presentation/pages/payment_process_page.dart';
 
-class PaymentPage extends StatelessWidget {
-  const PaymentPage({super.key});
+class PaymentPage extends StatefulWidget {
+  final List<CartItem> cartItems;
+  final int totalPrice;
+  final String tableNumber;
+  final String notes;
+
+  const PaymentPage({
+    super.key,
+    required this.cartItems,
+    required this.totalPrice,
+    required this.tableNumber,
+    required this.notes,
+  });
+
+  @override
+  State<PaymentPage> createState() => _PaymentPageState();
+}
+
+class _PaymentPageState extends State<PaymentPage> {
+  final OrderRepository _orderRepository = OrderRepository();
+  final AuthRepository _authRepository = AuthRepository();
+  bool _isSaving = false;
+
+  Future<void> _saveOrder(String paymentMethod) async {
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final userId = await UserPreferences.getUserId() ?? 1;
+      
+      // Get user info for display
+      final user = await _authRepository.getUserById(userId);
+      final userName = user?['username'] as String? ?? 'Guest';
+      
+      // Get product IDs from cart items
+      final productRepository = ProductRepository();
+      final allProducts = await productRepository.getAllProducts();
+      
+      final List<Map<String, dynamic>> orderItems = [];
+      for (var cartItem in widget.cartItems) {
+        final product = allProducts.firstWhere(
+          (p) => p['name'] == cartItem.drink.name,
+          orElse: () => <String, dynamic>{'id': 1},
+        );
+        orderItems.add({
+          'product_id': product['id'] as int,
+          'quantity': cartItem.quantity,
+          'price': cartItem.drink.price,
+        });
+      }
+
+      // Determine order status based on payment method
+      final orderStatus = paymentMethod == 'Pay on counter' ? 'pending' : 'completed';
+
+      final orderId = await _orderRepository.createOrder(
+        userId: userId,
+        totalPrice: widget.totalPrice,
+        tableNumber: widget.tableNumber,
+        notes: widget.notes,
+        paymentMethod: paymentMethod,
+        status: orderStatus,
+      );
+
+      await _orderRepository.createOrderItems(
+        orderId: orderId,
+        items: orderItems,
+      );
+
+      if (!mounted) return;
+      
+      // Handle navigation based on payment method
+      if (paymentMethod == 'Pay on counter') {
+        // Navigate to payment process page
+        Navigator.of(context, rootNavigator: true).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => PaymentProcessPage(
+              orderId: orderId,
+              userName: userName,
+              tableNumber: widget.tableNumber,
+              totalPrice: widget.totalPrice,
+            ),
+          ),
+        );
+      } else {
+        // Show success message for online payment
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Order berhasil! Payment: $paymentMethod'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        // Navigate back to home
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving order: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,52 +202,84 @@ class PaymentPage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Pay on online button
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFA3806B),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'Pay on online',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                  InkWell(
+                    onTap: _isSaving ? null : () => _saveOrder('Pay on online'),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: _isSaving 
+                            ? Colors.grey 
+                            : const Color(0xFFA3806B),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
                           ),
+                        ],
+                      ),
+                      child: _isSaving
+                          ? const Center(
+                              child: SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Pay on online',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 20),
                   // Pay on counter button
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFA3806B),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'Pay on counter',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                  InkWell(
+                    onTap: _isSaving ? null : () => _saveOrder('Pay on counter'),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      decoration: BoxDecoration(
+                        color: _isSaving 
+                            ? Colors.grey 
+                            : const Color(0xFFA3806B),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
                           ),
+                        ],
+                      ),
+                      child: _isSaving
+                          ? const Center(
+                              child: SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Pay on counter',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
                     ),
                   ),
                 ],
