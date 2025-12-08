@@ -15,6 +15,7 @@ class HorizontalDrinkList extends StatelessWidget {
     this.showAddButton = false,
     this.showDiscount = false,
     this.discountPercent = '',
+    this.scrollController,
   });
 
   final List<Drink> drinks;
@@ -24,12 +25,14 @@ class HorizontalDrinkList extends StatelessWidget {
   final bool showAddButton;
   final bool showDiscount;
   final String discountPercent;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 220,
       child: ListView.separated(
+        controller: scrollController,
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) => DrinkCard(
           drink: drinks[index],

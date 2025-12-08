@@ -118,6 +118,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             icon: Icons.person_outline,
                             label: 'Nama',
                             value: _userData?['username'] ?? 'Guest',
+                            onEdit: () => _showEditDialog('Nama', 'username', _userData?['username'] ?? ''),
                           ),
                           const Divider(height: 32),
                           // Email
@@ -125,6 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             icon: Icons.email_outlined,
                             label: 'Email',
                             value: _userData?['email'] ?? '-',
+                            onEdit: () => _showEditDialog('Email', 'email', _userData?['email'] ?? ''),
                           ),
                           const Divider(height: 32),
                           // Nomor HP
@@ -134,6 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             value: _userData?['phone']?.toString().isEmpty ?? true 
                                 ? '-' 
                                 : _userData!['phone'],
+                            onEdit: () => _showEditDialog('Nomor HP', 'phone', _userData?['phone'] ?? ''),
                           ),
                         ],
                       ),
@@ -172,6 +175,76 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showEditDialog(String fieldLabel, String fieldKey, String currentValue) async {
+    final controller = TextEditingController(text: currentValue);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit $fieldLabel'),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: fieldLabel,
+            border: const OutlineInputBorder(),
+            hintText: 'Masukkan $fieldLabel',
+          ),
+          keyboardType: fieldKey == 'email' 
+              ? TextInputType.emailAddress
+              : fieldKey == 'phone'
+                  ? TextInputType.phone
+                  : TextInputType.text,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              if (controller.text.trim().isNotEmpty) {
+                final userId = await UserPreferences.getUserId();
+                if (userId != null) {
+                  final updateData = <String, String>{};
+                  updateData[fieldKey] = controller.text.trim();
+                  
+                  final success = await _authRepository.updateUser(
+                    userId: userId,
+                    username: fieldKey == 'username' ? controller.text.trim() : null,
+                    email: fieldKey == 'email' ? controller.text.trim() : null,
+                    phone: fieldKey == 'phone' ? controller.text.trim() : null,
+                  );
+                  
+                  if (success && context.mounted) {
+                    Navigator.pop(context);
+                    _loadUserData(); // Reload user data
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('$fieldLabel berhasil diperbarui'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } else if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal memperbarui $fieldLabel'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brandBrown,
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
       ),
     );
   }
@@ -231,11 +304,13 @@ class _ProfileField extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.onEdit,
   });
 
   final IconData icon;
   final String label;
   final String value;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +320,7 @@ class _ProfileField extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: AppColors.brandBrown.withOpacity(0.1),
+            color: AppColors.brandBrown.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -275,6 +350,13 @@ class _ProfileField extends StatelessWidget {
             ],
           ),
         ),
+        if (onEdit != null)
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            color: AppColors.brandBrown,
+            onPressed: onEdit,
+            tooltip: 'Edit $label',
+          ),
       ],
     );
   }

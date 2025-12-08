@@ -22,12 +22,66 @@ class _HomePageState extends State<HomePage> {
   List<Drink> recommendedDrinks = [];
   List<Drink> categoryDrinks = [];
   bool _isLoading = true;
+  
+  // Scroll controllers for horizontal lists
+  late final ScrollController _recommendedScrollController;
+  late final ScrollController _categoryScrollController;
 
   @override
   void initState() {
     super.initState();
+    _recommendedScrollController = ScrollController();
+    _categoryScrollController = ScrollController();
     _loadProducts();
   }
+
+  void _scrollRecommendedLeft() {
+    if (_recommendedScrollController.hasClients) {
+      _recommendedScrollController.animateTo(
+        (_recommendedScrollController.offset - 200).clamp(0.0, _recommendedScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollRecommendedRight() {
+    if (_recommendedScrollController.hasClients) {
+      _recommendedScrollController.animateTo(
+        (_recommendedScrollController.offset + 200).clamp(0.0, _recommendedScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollCategoryLeft() {
+    if (_categoryScrollController.hasClients) {
+      _categoryScrollController.animateTo(
+        (_categoryScrollController.offset - 200).clamp(0.0, _categoryScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollCategoryRight() {
+    if (_categoryScrollController.hasClients) {
+      _categoryScrollController.animateTo(
+        (_categoryScrollController.offset + 200).clamp(0.0, _categoryScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _recommendedScrollController.dispose();
+    _categoryScrollController.dispose();
+    super.dispose();
+  }
+
 
   Future<void> _loadProducts() async {
     // Load all products
@@ -38,9 +92,15 @@ class _HomePageState extends State<HomePage> {
     final recommendedProducts = await _productRepository.getProductsByCategory('recommended');
     recommendedDrinks = _productRepository.mapToDrinks(recommendedProducts);
     
-    // Load category products (all except recommended)
-    final categoryProducts = await _productRepository.getProductsByCategory('all');
-    categoryDrinks = _productRepository.mapToDrinks(categoryProducts);
+    // For Categories section, show all products (not just 'all' category)
+    // Filter out recommended products to avoid duplication
+    final recommendedIds = recommendedDrinks.map((d) => d.id).toSet();
+    categoryDrinks = allDrinks.where((drink) => !recommendedIds.contains(drink.id)).toList();
+    
+    // If no products after filtering, show all products
+    if (categoryDrinks.isEmpty) {
+      categoryDrinks = allDrinks;
+    }
     
     setState(() {
       _isLoading = false;
@@ -69,25 +129,27 @@ class _HomePageState extends State<HomePage> {
               const PromoCard(),
               const SizedBox(height: 24),
               SectionHeader(
-                title: 'Categories',
-                onNext: () {},
-                onPrevious: () {},
+                title: 'Recommended',
+                onNext: _scrollRecommendedRight,
+                onPrevious: _scrollRecommendedLeft,
               ),
               const SizedBox(height: 16),
               HorizontalDrinkList(
-                drinks: categoryDrinks.isNotEmpty ? categoryDrinks : allDrinks,
+                drinks: recommendedDrinks,
                 cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
+                scrollController: _recommendedScrollController,
               ),
               const SizedBox(height: 24),
               SectionHeader(
-                title: 'Recommended',
-                onNext: () {},
-                onPrevious: () {},
+                title: 'Categories',
+                onNext: _scrollCategoryRight,
+                onPrevious: _scrollCategoryLeft,
               ),
               const SizedBox(height: 16),
               HorizontalDrinkList(
-                drinks: recommendedDrinks.isNotEmpty ? recommendedDrinks : allDrinks,
+                drinks: categoryDrinks,
                 cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
+                scrollController: _categoryScrollController,
               ),
               const SizedBox(height: 32),
               Center(

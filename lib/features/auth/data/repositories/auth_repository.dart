@@ -72,5 +72,34 @@ class AuthRepository {
     }
     return null;
   }
+
+  Future<bool> updateUser({
+    required int userId,
+    String? username,
+    String? email,
+    String? phone,
+  }) async {
+    final db = await _dbHelper.database;
+    final Map<String, dynamic> data = {};
+
+    if (username != null) data['username'] = username;
+    if (email != null) data['email'] = email;
+    if (phone != null) data['phone'] = phone;
+
+    if (data.isEmpty) return false;
+
+    try {
+      final result = await db.update(
+        'users',
+        data,
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+      return result > 0;
+    } catch (e) {
+      print('Update user error: $e');
+      return false;
+    }
+  }
 }
 

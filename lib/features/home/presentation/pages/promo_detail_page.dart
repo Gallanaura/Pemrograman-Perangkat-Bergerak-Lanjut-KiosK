@@ -54,6 +54,8 @@ class _PromoDetailPageState extends State<PromoDetailPage> {
         return 'student_discount';
       case 'Buy 2 Get 1 Free':
         return 'buy2get1';
+      case 'Discount':
+        return 'discount';
       default:
         return 'discount';
     }
@@ -62,18 +64,26 @@ class _PromoDetailPageState extends State<PromoDetailPage> {
   Future<void> _loadProducts() async {
     // Get category based on promo title
     final category = _getCategoryFromPromoTitle(widget.promoTitle);
+    print('PromoDetailPage: Loading products for promo "${widget.promoTitle}" -> category: "$category"');
     
-    // Load products by category
+    // Load products by category - ONLY show products that match the promo category
     final categoryProducts = await _productRepository.getProductsByCategory(category);
+    print('PromoDetailPage: Found ${categoryProducts.length} products for category "$category"');
     
-    // Also load all products as fallback
+    // Debug: Check all products and their categories
     final allProducts = await _productRepository.getAllProducts();
+    print('PromoDetailPage: Total products in database: ${allProducts.length}');
+    final categoryMap = <String, int>{};
+    for (var product in allProducts) {
+      final cat = (product['category'] as String? ?? 'all').toLowerCase().trim();
+      categoryMap[cat] = (categoryMap[cat] ?? 0) + 1;
+    }
+    print('PromoDetailPage: Products by category: $categoryMap');
     
     setState(() {
-      // Use category products if available, otherwise use all products
-      allDrinks = categoryProducts.isNotEmpty 
-          ? _productRepository.mapToDrinks(categoryProducts)
-          : _productRepository.mapToDrinks(allProducts);
+      // Only show products that match the category
+      // If no products found, show empty list (user can add products with this category in admin)
+      allDrinks = _productRepository.mapToDrinks(categoryProducts);
       filteredDrinks = allDrinks;
       _isLoading = false;
     });
@@ -329,33 +339,10 @@ class _PromoDetailPageState extends State<PromoDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 24),
-                    // Recommended Section
-                    SectionHeader(
-                      title: 'Recommended',
-                      onNext: () {},
-                      onPrevious: () {},
-                    ),
-                    const SizedBox(height: 16),
-                    HorizontalDrinkList(
-                      drinks: filteredDrinks,
-                      cardColor: AppColors.brandBrown.withOpacity(0.2),
-                      onAddToCart: _addToCart,
-                      showPrice: true,
-                      showAddButton: true,
-                      showDiscount: true,
-                      discountPercent: widget.discount,
-                    ),
-                    const SizedBox(height: 24),
-                    // Categories Section
-                    SectionHeader(
-                      title: 'Categories',
-                      onNext: () {},
-                      onPrevious: () {},
-                    ),
-                    const SizedBox(height: 16),
+                    // Products Grid - No section headers
                     GridDrinkList(
                       drinks: filteredDrinks,
-                      cardColor: AppColors.brandBrown.withOpacity(0.2),
+                      cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
                       onAddToCart: _addToCart,
                       showDiscount: true,
                       discountPercent: widget.discount,

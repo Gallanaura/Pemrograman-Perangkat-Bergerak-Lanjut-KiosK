@@ -12,12 +12,16 @@ class ProductRepository {
 
   Future<List<Map<String, dynamic>>> getProductsByCategory(String category) async {
     final db = await _dbHelper.database;
-    return await db.query(
-      'products',
-      where: 'category = ?',
-      whereArgs: [category],
-      orderBy: 'name',
+    // Use LOWER() for case-insensitive comparison to handle any case variations
+    final result = await db.rawQuery(
+      'SELECT * FROM products WHERE LOWER(TRIM(category)) = LOWER(TRIM(?)) ORDER BY name',
+      [category],
     );
+    print('Query for category "$category": Found ${result.length} products');
+    if (result.isNotEmpty) {
+      print('Sample product categories: ${result.map((p) => p['category']).toList()}');
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>?> getProductById(int id) async {

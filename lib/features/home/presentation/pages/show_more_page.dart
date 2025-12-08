@@ -18,7 +18,9 @@ class _ShowMorePageState extends State<ShowMorePage> {
   final ProductRepository _productRepository = ProductRepository();
   final TextEditingController _searchController = TextEditingController();
   List<Drink> allDrinks = [];
+  List<Drink> recommendedDrinks = [];
   List<Drink> filteredDrinks = [];
+  List<Drink> filteredRecommendedDrinks = [];
   List<CartItem> cartItems = [];
   bool _isLoading = true;
 
@@ -36,18 +38,17 @@ class _ShowMorePageState extends State<ShowMorePage> {
   }
 
   Future<void> _loadProducts() async {
-    // Load recommended products
-    final recommendedProducts = await _productRepository.getProductsByCategory('recommended');
-    final recommendedDrinks = _productRepository.mapToDrinks(recommendedProducts);
-    
     // Load all products
     final allProducts = await _productRepository.getAllProducts();
     allDrinks = _productRepository.mapToDrinks(allProducts);
     
+    // Load recommended products separately
+    final recommendedProducts = await _productRepository.getProductsByCategory('recommended');
+    recommendedDrinks = _productRepository.mapToDrinks(recommendedProducts);
+    
     setState(() {
-      // Use recommended drinks if available, otherwise use all drinks
-      allDrinks = recommendedDrinks.isNotEmpty ? recommendedDrinks : allDrinks;
       filteredDrinks = allDrinks;
+      filteredRecommendedDrinks = recommendedDrinks;
       _isLoading = false;
     });
   }
@@ -57,8 +58,12 @@ class _ShowMorePageState extends State<ShowMorePage> {
     setState(() {
       if (query.isEmpty) {
         filteredDrinks = allDrinks;
+        filteredRecommendedDrinks = recommendedDrinks;
       } else {
         filteredDrinks = allDrinks
+            .where((drink) => drink.name.toLowerCase().contains(query))
+            .toList();
+        filteredRecommendedDrinks = recommendedDrinks
             .where((drink) => drink.name.toLowerCase().contains(query))
             .toList();
       }
@@ -189,21 +194,23 @@ class _ShowMorePageState extends State<ShowMorePage> {
                   ),
                   const SizedBox(height: 24),
                   // Recommended Section
-                  SectionHeader(
-                    title: 'Recommended',
-                    onNext: () {},
-                    onPrevious: () {},
-                  ),
-                  const SizedBox(height: 16),
-                  HorizontalDrinkList(
-                    drinks: filteredDrinks,
-                    cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
-                    onAddToCart: _addToCart,
-                    showPrice: true,
-                    showAddButton: true,
-                  ),
-                  const SizedBox(height: 24),
-                  // All Products Grid
+                  if (filteredRecommendedDrinks.isNotEmpty) ...[
+                    SectionHeader(
+                      title: 'Recommended',
+                      onNext: () {},
+                      onPrevious: () {},
+                    ),
+                    const SizedBox(height: 16),
+                    HorizontalDrinkList(
+                      drinks: filteredRecommendedDrinks,
+                      cardColor: AppColors.brandBrown.withValues(alpha: 0.2),
+                      onAddToCart: _addToCart,
+                      showPrice: true,
+                      showAddButton: true,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  // All Products Section
                   SectionHeader(
                     title: 'All Products',
                     onNext: () {},
